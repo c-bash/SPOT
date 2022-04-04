@@ -14,6 +14,56 @@
 %   solJ: 1 x k vector of the cost for each iteration
 %   solCPUtime: 1 x k vector of the solver time each iteration
 
+% ================================
+% ========== ALGORITHM ===========
+% ================================
+
+% Choose which algorithm configuration to use to solve the problem
+%    NMPC (IPOPT): 0
+%    Compact NMPC (IPOPT): 1
+%    Linearized MPC (IPOPT): 2
+%    Linearized Compact MPC (IPOPT): 3
+%    Linearized Compact MPC (Fmincon): 4
+%    Linearized Compact MPC (Quadprog): 5
+ALGORITHM = 5;
+
+if ALGORITHM == 0
+    % NMPC
+    % IPOPT
+    % Objective function = for loop 
+    % Nonlinear constraints = for loop
+    algorithmname = 'NMPC';
+elseif ALGORITHM == 1
+    % NMPC
+    % IPOPT
+    % Objective function = BIG matrix multiply 
+    % Nonlinear constraints = small matrix multiply and assignment
+    algorithmname = 'CompactNMPC';
+elseif ALGORITHM == 2
+    % MPC
+    % IPOPT
+    % Objective function = BIG matrix multiply 
+    % Linear constraints = small matrix multiply and assignment
+    algorithmname = 'LinearizedMPC';
+elseif ALGORITHM == 3
+    % MPC
+    % IPOPT
+    % Objective function = BIG matrix multiply 
+    % Linear constraints = BIG matrix multiply
+    algorithmname = 'LinearizedCompactMPC';
+elseif ALGORITHM == 4
+    % MPC
+    % Fmincon
+    % Objective function = BIG matrix multiply 
+    % Linear constraints = big matrix multiply, split into = and <= constraints
+    algorithmname = 'Fmincon';
+elseif ALGORITHM == 5
+    % MPC
+    % Quadprog
+    % Objective function = Split into sections, 2(0.5*x.'*H*x - xt.'*H*x) + xt.'*H*xt
+    % Linear constraints = big matrix multiply, split into = and <= constraints
+    algorithmname = 'Quadprog';
+end
 
 % ================================
 % ========== VARIABLES ===========
@@ -48,8 +98,8 @@ cdock = [ct(1)+rdock*cos(thetat0),...
 % Position and velocity of obstacles
 testcase = 'A'; % 'A' or 'B' or 'C' ...
 
-vobj1 = [0.0;0.0];             % velocity of the moving obstacle 1 (0.01,0.01)
-vobj2 = [0.0;0.0];            % velocity of the moving obstacle 2 (-0.02,0.02)
+vobj1 = [0.01;0.02];             % velocity of the moving obstacle 1 (0.01,0.01)
+vobj2 = [-0.02;-0.01];            % velocity of the moving obstacle 2 (-0.02,0.02)
 if testcase == 'A'
     pobj1 = [2.4; 2.5];          % position of obstacle 1, Test Case A
     pobj2 = [2.5; 1.5];          % position of obstacle 2, Test Case A
@@ -74,7 +124,7 @@ elseif testcase == 'G'
 end
 
 % Filename for output files, animations, figures, etc.
-PRENAME = strcat('12-Park2017-TestCase',testcase,'-Linearized-');
+PRENAME = strcat('1-TestCase',testcase,'-',algorithmname,'-');
 
 % Setting the upper and lower limits of the constraint equations
 % There are:
@@ -84,10 +134,8 @@ PRENAME = strcat('12-Park2017-TestCase',testcase,'-Linearized-');
 %     Obstacle avoidance w/ 2 moving obstacles: 2*N
 %     Obstacle avoidance w/ rotating target: N
 [n,~] = size(xi);
-con0 = [n*N, 2*N, N, 2*N, N]; % The initial number of constraints
+con0 = [n*N, 2*N, N, N, N, N]; % The initial number of constraints
 n_constraints0 = sum(con0);
-
-[cl,cu] = theConstraintLimits(con0,umax,taumax);
 
 % Initial Starting Guess (Required for Nonlinear Problems)
 guess = [-0.15, -0.15, 0].';
@@ -98,7 +146,13 @@ x0 = theInitialGuesser(xi,guess,N,Td,m,Iz);
 % ================================
 
 % Setup Options
-opts = optiset('solver','ipopt','display','final');
+if ALGORITHM < 4
+    opts = optiset('solver','ipopt','display','final','maxiter',50);
+elseif ALGORITHM == 4
+    options = optimoptions('fmincon','Algorithm','sqp','MaxIterations',50);
+elseif ALGORITHM == 5
+    options = optimoptions('quadprog','MaxIterations',50);
+end
 
 % Initializing empty arrays to save solution data into
 sol = xi.';
@@ -136,79 +190,194 @@ while ~isdocked
     xt9(4:9,:) = xt(:,2:N+1);
     xt9 = reshape(xt9, [9*N,1]);
     
-    % Define arrays for the hyperplane normal arrays to be used for the entry cone constraints
-    nc1m = zeros(N,2*N);
-    nc2m = zeros(N,2*N);
+    if ALGORITHM >= 2
+        % The reference trajectory of the chaser over the horizon of instant k
+        pxref = theReferenceTrajectory(x0,N); % 2xN
+
+        % The points ro on the KOZ boundaries of the obstacles over the horizon
+        ro_1 = theObstacleLinearizer(pxref,pobj1hz(:,2:N+1),KOZ_actual);
+        ro_2 = theObstacleLinearizer(pxref,pobj2hz(:,2:N+1),KOZ_actual);
+        ro_t = theObstacleLinearizer(pxref,ptar(:,2:N+1),rhold);
+    end
     
-    % The reference trajectory of the chaser over the horizon of instant k
-    pxref = theReferenceTrajectory(x0,N); % 2xN
+    if ALGORITHM >= 3
+        % Reshape pdock for use in the linearized matrix constraints
+        pdock9 = zeros(9,N);
+        pdock9(4:5,:) = pdock(:,2:N+1);
+        pdock9 = reshape(pdock9, [9*N,1]);
         
-    % The points ro on the KOZ boundaries of the obstacles over the horizon
-    ro_1 = theObstacleLinearizer(pxref,pobj1hz(:,2:N+1),KOZ_actual);
-    ro_2 = theObstacleLinearizer(pxref,pobj2hz(:,2:N+1),KOZ_actual);
-    ro_t = theObstacleLinearizer(pxref,ptar(:,2:N+1),rhold);
+        % Make the ro_X and robj9 vectors for obstacle constraints
+        ro_1_9 = zeros(9,N);
+        ro_1_9(4:5,:) = ro_1;
+        ro_1_9 = reshape(ro_1_9,9*N,1);
+
+        ro_2_9 = zeros(9,N);
+        ro_2_9(4:5,:) = ro_2;
+        ro_2_9 = reshape(ro_2_9,9*N,1);
+
+        ro_t_9 = zeros(9,N);
+        ro_t_9(4:5,:) = ro_t;
+        ro_t_9 = reshape(ro_t_9,9*N,1);
+
+        robj1_9 = zeros(9,N);
+        robj1_9(4:5,:) = pobj1hz(:,2:N+1);
+        robj1_9 = reshape(robj1_9,9*N,1);
+
+        robj2_9 = zeros(9,N);
+        robj2_9(4:5,:) = pobj2hz(:,2:N+1);
+        robj2_9 = reshape(robj2_9,9*N,1);
+
+        rtar_9 = zeros(9,N);
+        rtar_9(4:5,:) = ptar(:,2:N+1);
+        rtar_9 = reshape(rtar_9,9*N,1);
+
+        % Make the matrix for obstacle constraints
+        S1 = Sj;
+        S2 = Sj;
+        St = [1/(rhold*rhold), 0; 0, 1/(rhold*rhold)];
+
+        E1 = (ro_1 - pobj1hz(:,2:N+1)).' * S1;
+        E2 = (ro_2 - pobj2hz(:,2:N+1)).' * S2;
+        Et = (ro_t - ptar(:,2:N+1)).' * St;
+
+        D1 = zeros(N,(9*N));
+        D2 = zeros(N,(9*N));
+        Dt = zeros(N,(9*N));
+        for row = 1:N
+            D1(row,4+(row-1)*9:5+(row-1)*9) = E1(row,:);
+            D2(row,4+(row-1)*9:5+(row-1)*9) = E2(row,:);
+            Dt(row,4+(row-1)*9:5+(row-1)*9) = Et(row,:);
+        end   
+    end
+    
+    % Define the b vector for Cx = b dynamics constraint
+    bvec = zeros(6*N,1);
+    bvec(1:6) = Ad*xi;
+    
+    % Define arrays for the hyperplane normal arrays to be used for the entry cone constraints
+    if ALGORITHM == 0 || ALGORITHM == 1 || ALGORITHM == 2
+        nc1m = zeros(N,2*N);
+        nc2m = zeros(N,2*N);  
+    elseif ALGORITHM >= 3
+        nc1m = zeros(N,9*N);
+        nc2m = zeros(N,9*N);
+    end
         
     % Determine if the entry cone constraints should be on
     if (xi(1:2) - cdock(1:2,1)).' * (xi(1:2) - cdock(1:2,1)) < rcone*rcone % if chaser is within rcone range
         withEntryCone = 1; % turn on
+        con = [n*N, 2*N, N, N, N, N, N, N];
         
-        % Add entry cone constraint limits
-        if length(cu) == n_constraints0
-            cl(end+1:end+2*N) = -inf;
-            cu(end+1:end+2*N) = 0;
+        if ALGORITHM == 0 || ALGORITHM == 1 || ALGORITHM == 2
+            % Create Nx2N matrix of the entry cone normal to each hyperplane
+            % Should be in the form
+            % ncm = [nx1 ny1  0   0   0   0  ... 0   0   0
+            %         0   0  nx2 ny2  0   0  ... 0   0   0
+            %                           ...
+            %         0   0   0   0   0   0  ... 0  nxN nyN ]
+            for i=1:N
+                nc1m(i,2*i-1) = nc1(i+1,1);
+                nc1m(i,2*i) = nc1(i+1,2);
+
+                nc2m(i,2*i-1) = nc2(i+1,1);
+                nc2m(i,2*i) = nc2(i+1,2);
+            end
+        elseif ALGORITHM >= 3
+            % Create Nx2N matrix of the entry cone normal to each hyperplane
+            % Should be in the form
+            % ncm = [ 0_1x3 n1_1x2 0_1x4 0_1x3  0_1x2 0_1x4  ... 0_1x3 0_1x2 0_1x4
+            %         0_1x3  0_1x2 0_1x4 0_1x3 n2_1x2 0_1x4  ... 0_1x3 0_1x2 0_1x4
+            %                           ...
+            %         0_1x3  0_1x2 0_1x4 0_1x3  0_1x2 0_1x4  ... 0_1x3 nN+1_1x2 0_1x4
+            for i=1:N
+                nc1m(i,4+(i-1)*9:5+(i-1)*9) = nc1(i+1,:);
+                nc2m(i,4+(i-1)*9:5+(i-1)*9) = nc2(i+1,:);
+            end
         end
         
-        % Create Nx2N matrix of the entry cone normal to each hyperplane
-        % Should be in the form
-        % ncm = [nx1 ny1  0   0   0   0  ... 0   0   0
-        %         0   0  nx2 ny2  0   0  ... 0   0   0
-        %                           ...
-        %         0   0   0   0   0   0  ... 0  nxN nyN ]
-        for i=1:N
-            nc1m(i,2*i-1) = nc1(i+1,1);
-            nc1m(i,2*i) = nc1(i+1,2);
-            
-            nc2m(i,2*i-1) = nc2(i+1,1);
-            nc2m(i,2*i) = nc2(i+1,2);
-        end
         
     else
         withEntryCone = 0; % turn off
-        
-        % Remove entry cone constraint limits
-        if length(cu) > n_constraints0
-            cl(end-2*N+1:end) = [];
-            cu(end-2*N+1:end) = [];
-        end
+        con = con0;
         
         % FOR PLOTTING PURPOSES
         m1 = NaN;
         m2 = NaN;
     end
-
-    % Define the b vector for Cx = b dynamics constraint
-    bvec = zeros(6*N,1);
-    bvec(1:6) = Ad*xi;
+    
+    if ALGORITHM == 3
+        % Constraint Matrix
+        if ~withEntryCone
+            Wmat = [Cmat;Umat;-2*D1;-2*D2;-2*Dt];
+        else
+            Wmat = [Cmat;Umat;-2*D1;-2*D2;-2*Dt;-nc1m;nc2m];
+        end
+    elseif ALGORITHM == 4 || ALGORITHM == 5     
+        % Constraint Matrix
+        if ~withEntryCone
+            Wmat = [-2*D1;-2*D2;-2*Dt];
+        else
+            Wmat = [-2*D1;-2*D2;-2*Dt;-nc1m;nc2m];
+        end
+    end
     
     % Objective Function
-    ofun = @(x)theObjectiveFunctionCompact(x,xt9,H);
+    if ALGORITHM == 0
+        ofun = @(x) theObjectiveFunction0(x,N,xt,P,Q,R);
+    elseif ALGORITHM > 0
+        ofun = @(x)theObjectiveFunction123(x,xt9,H);
+    end
     
     % Nonlinear Constraints (cl <= nlcon(x) <= cu)
-    nlcon = @(x) theNonlinearConstraintsMovingObstacleCompact(x,N,bvec,...
-        Cmat,con0,pobj1hz,pobj2hz,nc1m,nc2m,pdock,withEntryCone,ro_1,ro_2,...
-        ro_t,ptar,KOZ_actual,rhold);
-        
-    % Computing the gradient and jacobian -- Complex Step Differentiation
-    grad = @(x) cstepJac(ofun,x);
-    jac = @(x) cstepJac(nlcon,x);
+    if ALGORITHM == 0
+        nlcon = @(x) theNonlinearConstraints0(x,N,Ad,Bd,xi,Sj,...
+            pobj1hz,pobj2hz,ct,nc1,nc2,pdock,withEntryCone,rhold);
+    elseif ALGORITHM == 1
+        nlcon = @(x) theNonlinearConstraints1(x,N,Ad,Cmat,xi,...
+            pobj1hz,pobj2hz,ct,nc1m,nc2m,pdock,withEntryCone,KOZ_actual,rhold);
+    elseif ALGORITHM == 2
+        nlcon = @(x) theNonlinearConstraints2(x,N,bvec,...
+            Cmat,con0,pobj1hz,pobj2hz,nc1m,nc2m,pdock,withEntryCone,ro_1,ro_2,...
+            ro_t,ptar,KOZ_actual,rhold);
+    elseif ALGORITHM == 3
+        nlcon = @(x) theNonlinearConstraints3(x,Wmat);
+    end
     
-    % Build OPTI Problem
-    Opt = opti('fun',ofun,'grad',grad,'nl',nlcon,cl,cu,'jac',jac,'x0',x0,'options',opts);
+    % Constraint upper and lower limits
+    if ALGORITHM == 0 || ALGORITHM == 1 || ALGORITHM == 2  
+        [cl,cu] = theConstraintLimits012(con0,con,umax,taumax);
+    elseif ALGORITHM == 3   
+        [cl,cu] = theConstraintLimits3(con0,con,bvec,Fmat,D1,D2,Dt,...
+            ro_1_9,ro_2_9,ro_t_9,robj1_9,robj2_9,rtar_9,nc1m,nc2m,pdock9);
+    elseif ALGORITHM == 4 || ALGORITHM == 5
+        [cl,cu,bineqvec] = theConstraintLimits4(Umat,Fmat,Wmat,con0,con,...
+            D1,D2,Dt,ro_1_9,ro_2_9,ro_t_9,robj1_9,robj2_9,rtar_9,nc1m,...
+            nc2m,pdock9);
+    end
 
+    if ALGORITHM < 4    
+        % Computing the gradient and jacobian -- Complex Step Differentiation
+        grad = @(x) cstepJac(ofun,x);
+        jac = @(x) cstepJac(nlcon,x);
+        % Build OPTI Problem
+        Opt = opti('fun',ofun,'grad',grad,'nl',nlcon,cl,cu,'jac',jac,'x0',x0,'options',opts);
+    end
+    
     % Solve!
-    tic
-    [x,fval,ef,info] = solve(Opt,x0);
-    solCPUtime(end+1) = toc;
+    if ALGORITHM < 4
+        tic
+        [x,fval,ef,info] = solve(Opt,x0);
+        solCPUtime(end+1) = toc;
+    elseif ALGORITHM == 4
+        tic
+        x = fmincon(ofun,x0,Wmat,bineqvec,Cmat,bvec,cl,cu,[],options);
+        solCPUtime(end+1) = toc;
+    elseif ALGORITHM == 5
+        tic
+        [x,fval] = quadprog(H,-H.'*xt9,Wmat,bineqvec,Cmat,bvec,cl,cu,x0,options);
+        solCPUtime(end+1) = toc;
+    end
+   
 
     % Save data
     sol(end+1:end+9) = x(1:9);
@@ -224,7 +393,11 @@ while ~isdocked
     solm2(count,1) = m2(1);
     solthetat(count,1) = thetat(1);
     solpdock(count,1:2) = pdock(:,1);
-    solJ(end+1) = theObjectiveFunctionCompact(x,xt9,H);
+    if ALGORITHM == 0
+        solJ(end+1) = theObjectiveFunction0(x,N,xt,P,Q,R);
+    elseif ALGORITHM > 0
+        solJ(end+1) = theObjectiveFunction123(x,xt9,H);
+    end
     count = count + 1;
     
     % Determine if the chaser is docked using the 'current' positions of
@@ -278,6 +451,7 @@ solm1(count,1) = m1(2); % NaN; %
 solm2(count,1) =  m2(2); % NaN; %
 solthetat(count,1) = thetat(2);
 solpdock(count,1:2) = pdock(:,2);
+
 
 % Save the data in the workspace to a .mat file
 save(strcat(PRENAME,'dat.mat'))

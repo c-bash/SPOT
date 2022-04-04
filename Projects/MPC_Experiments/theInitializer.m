@@ -109,4 +109,14 @@ KOZ = 0.3; % m, the keep out zone of the obstacle
 KOZ_actual = KOZ + rc*sqrt(2); % taking into account the width of the chaser
 Sj = [KOZ_actual^(-2),0; 0,KOZ_actual^(-2)]; % obstacle shape matrix; circle
 
+% ================================
+% ====== THRUST CONSTRAINTS ======
+% ================================
+Umat = zeros(3*N,9*N);
+for row = 1:N
+    Umat(row,1+9*(row-1)) = 1;
+    Umat(row+N,2+9*(row-1)) = 1;
+    Umat(row+2*N,3+9*(row-1)) = 1;
+end
 
+Fmat = reshape(repmat([umax,umax,taumax],N,1),3*N,1); % 3N x 1

@@ -20,10 +20,15 @@ function [pobj1hz, pobj2hz, ptar] = theMovingObstacleHorizonParameters(Td,N,ct,p
     % Create the multiplying array in terms of Td
     Tdarray = 0:Td:N*Td; % 1 x (N+1)
     
+    % Create arrays of the positions matching the output size, (2 x (N+1))
+    ctarray = repmat(ct,1,N+1);
+    pobj1array = repmat(pobj1,1,N+1);
+    pobj2array = repmat(pobj2,1,N+1);
+    
     % Compute the new target/obstacle positions over the horizon
-    ptar = ct + vtar * Tdarray;  % (2 x (N+1))
-    pobj1hz = pobj1 + vobj1 * Tdarray;  % (2 x (N+1))
-    pobj2hz = pobj2 + vobj2 * Tdarray;  % (2 x (N+1))   
+    ptar = ctarray + vtar * Tdarray;  % (2 x (N+1))
+    pobj1hz = pobj1array + vobj1 * Tdarray;  % (2 x (N+1))
+    pobj2hz = pobj2array + vobj2 * Tdarray;  % (2 x (N+1))  
     
 end
 
