@@ -19,8 +19,16 @@ m = 16.95; % kg; mass of testbed chaser (RED)
 Iz = 0.271; % kg m^2; moment of inertia of chaser (RED)
 rt = 0.15; % m, target (BLACK) radius to docking port
 rc = 0.15; %m, chaser (RED) radius to docking port
-wdock = 0.05; %m, the length of the docking port
-rdock = rt+rc+wdock; %m, the distance of the docking condition from target COM
+tarcyllength = 0.08; %m, target (BLACK) docking port cylinder length
+tarconelength = 0.055; %m, target (BLACK) docking port cone length
+dockoffset = 0.0675; %m, offset of docking port center from COM along x-direction
+cdockdeltay = rt+rc+tarcyllength+tarconelength; %m, cdock delta-x
+cdockdeltax = rc+rt-2*dockoffset; %m, cdock delta-y
+rdock = sqrt(cdockdeltax*cdockdeltax + cdockdeltay*cdockdeltay); %m, cdock delta-total
+cdockoa = atan(cdockdeltay/cdockdeltax); %m, cdock angle from thetat = 0
+pdockoa = atan(rt/cdockdeltax); %m, angle from thetat = 0 for pdock offset
+pdockr = sqrt(cdockdeltax*cdockdeltax + rt*rt); %m, pdock distance from target COM
+ecoa = pi/2; %m, angle from thetat = 0 for entry cone offset
 umax = 0.15; % N, or perhaps closer to 0.25 N from the SPOT wiki page
 taumax = umax*rc; % Nm
 

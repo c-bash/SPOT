@@ -252,11 +252,11 @@ thetat0 = pi/4; % rad, initial target angle
 thetat_dot = 2.0 * d2r; % rad/s, rotation rate of target spacecraft
 
 % Current docking condition, the state of the COM of the chaser spacecraft  
-cdock = [ct(1)+rdock*cos(thetat0),...
-         ct(2)+rdock*sin(thetat0),...
+cdock = [ct(1)+rdock*cos(thetat0+cdockoa),...
+         ct(2)+rdock*sin(thetat0+cdockoa),...
          thetat0+pi,...
-         -rdock*thetat_dot*sin(thetat0),...
-         rdock*thetat_dot*cos(thetat0),...
+         vtar(1)-rdock*thetat_dot*sin(thetat0+cdockoa),...
+         vtar(2)+rdock*thetat_dot*cos(thetat0+cdockoa),...
          thetat_dot].';     
 
 % Position and velocity of obstacles
@@ -302,7 +302,7 @@ con0 = [n*N, 2*N, N, N, N, N]; % The initial number of constraints
 n_constraints0 = sum(con0);
 
 % Initial Starting Guess (Required for Nonlinear Problems)
-guess = [-0.15, -0.15, 0].';
+guess = [-0.15, 0, 0].';
 x0 = theInitialGuesser(xi,guess,N,Td,m,Iz);
 
 % ================================
@@ -338,8 +338,8 @@ home_states_BLUE          = [ xLength/2-0.9; yLength/2+0.5; 0];  % [m; m; rad]
 
 %% Load in BLACK control data from previous experiment 
 % Go to SimulationData_2022_4_2_15_5
-load('Saved Data/SimulationData_2022_4_2_15_5/dataPacket_SIM.mat')
-controlsblack = dataPacket(:,[1,65,66,67]);
+%load('Saved Data/SimulationData_2022_4_2_15_5/dataPacket_SIM.mat')
+%controlsblack = dataPacket(:,[1,65,66,67]);
 
 %% Start the graphical user interface:
 

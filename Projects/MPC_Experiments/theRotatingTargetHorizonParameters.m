@@ -1,4 +1,4 @@
-function [thetat,m1,m2,nc1,nc2,pdock,xt,cdock] = theRotatingTargetHorizonParameters(Td,N,ptar,rt,rhold,rdock,thetat_dot,thetah,thetat0)
+function [thetat,m1,m2,nc1,nc2,pdock,xt,cdock] = theRotatingTargetHorizonParameters(Td,N,ptar,vtar,pdockr,rhold,rdock,cdockoa,pdockoa,ecoa,thetat_dot,thetah,thetat0)
     % This function calculates angle of the target spacecraft over the
     % horizon, then uses this to calculate the new slopes for the entry
     % cone constraints, the new docking state, and the new target
@@ -8,6 +8,7 @@ function [thetat,m1,m2,nc1,nc2,pdock,xt,cdock] = theRotatingTargetHorizonParamet
     %   Td: the discretization time, s
     %   N: the horizon length
     %   ptar: the position of the target over the horizon; (2 x (N+1))
+    %   vtar: the velocity of the target over the horizon; (2 x 1)
     %   rt: the width of the target spacecraft, m
     %   rhold: the holding radius at the current iteration, m
     %   rc: the width of the chaser spacecraft, m
@@ -31,31 +32,33 @@ function [thetat,m1,m2,nc1,nc2,pdock,xt,cdock] = theRotatingTargetHorizonParamet
     thetat = thetat0 + thetat_dot * Tdarray; % (1 x (N+1))
     
     % Calculate the entry cone slopes over the horizon
-    m1 = tan(thetat + thetah);
-    m2 = tan(thetat - thetah);
+    m1 = tan(thetat + ecoa + thetah);
+    m2 = tan(thetat + ecoa - thetah);
     
     % The normal vector to the entry cone hyperplanes over the horizon
-    nc1 = [sin(thetat + thetah); -cos(thetat + thetah)].';
-    nc2 = [sin(thetat - thetah); -cos(thetat - thetah)].';
+    nc1 = [sin(thetat + ecoa + thetah); -cos(thetat + ecoa + thetah)].';
+    nc2 = [sin(thetat + ecoa - thetah); -cos(thetat + ecoa - thetah)].';
     
     % Calculate the state of the docking port on the target (apex), used for
     % the entry cone constraints
-    pdockx = ptar(1,:) + rt*cos(thetat); 
-    pdocky = ptar(2,:) + rt*sin(thetat); 
+    pdockx = ptar(1,:) + pdockr*cos(thetat + pdockoa); 
+    pdocky = ptar(2,:) + pdockr*sin(thetat + pdockoa); 
     
     % Calculate the state of the center of the chaser spacecraft during
     % docking; i.e. docking condition
-    cdockx = ptar(1,:) + rdock*cos(thetat);
-    cdocky = ptar(2,:) + rdock*sin(thetat);
-    cdockxdot = -rdock*thetat_dot*sin(thetat);
-    cdockydot = rdock*thetat_dot*cos(thetat);
+    vtararray = repmat(vtar,1,N+1); % , (2 x (N+1))
+    
+    cdockx = ptar(1,:) + rdock*cos(thetat + cdockoa);
+    cdocky = ptar(2,:) + rdock*sin(thetat + cdockoa);
+    cdockxdot = vtararray(1,:) - rdock*thetat_dot*sin(thetat + cdockoa);
+    cdockydot = vtararray(2,:) + rdock*thetat_dot*cos(thetat + cdockoa);
     
     % Calculate the desired state for the chaser over the horizon, to be
     % used in the objective function; i.e. holding state
-    xtx = ptar(1,:) + rhold*cos(thetat);
-    xty = ptar(2,:) + rhold*sin(thetat);
-    xtxdot = -rhold*thetat_dot*sin(thetat);
-    xtydot = rhold*thetat_dot*cos(thetat);
+    xtx = ptar(1,:) + rhold*cos(thetat + cdockoa);
+    xty = ptar(2,:) + rhold*sin(thetat + cdockoa);
+    xtxdot = vtararray(1,:) - rhold*thetat_dot*sin(thetat + cdockoa);
+    xtydot = vtararray(2,:) + rhold*thetat_dot*cos(thetat + cdockoa);
     
     % Combine into arrays for output
     pdock = [pdockx; pdocky]; % 2xN+1 vector
