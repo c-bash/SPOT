@@ -88,8 +88,6 @@ noise_variance_RED             = 0;
 noise_variance_BLACK           = 0;
 noise_variance_BLUE            = 0;
 
-noisemean = 0.1;
-
 %% Set the base sampling rate: 
 
 % This variable will change the frequency at which the template runs. If
@@ -239,7 +237,7 @@ thruster_dist2CG_BLUE         = [73.54;-64.46;81.39;-60.11;64.46;-65.94;54.61;-7
 %    MPC (ISNM): 6
 %    Fast MPC (ISNM): 7
 ALGORITHM = 5;
-isCONTROL = 1;
+isCONTROL = 0;
 
 if ALGORITHM == 5
     % MPC
@@ -378,7 +376,6 @@ count = 1;
 % chaser and target?
 isdocked = 0;
 
-
 %%  Set the drop, initial, and home positions for each platform:
 
 drop_states_ARM           = [ pi/2, pi/2, 0];                      % [rad; rad; rad]
@@ -391,9 +388,17 @@ drop_states_RED           = rand([1,3])/10+init_states_RED; % [m; m; rad]
 drop_states_BLACK         = rand([1,3])/10+init_states_BLACK;  % [m; m; rad]
 drop_states_BLUE          = rand([1,3])/10+init_states_BLUE;         % [m; m; rad]
 
-home_states_RED           = [ xLength/2+0.7, yLength/2, pi]; % [m; m; rad]
-home_states_BLACK         = [ xLength/2, yLength/2, 0];  % [m; m; rad]
-home_states_BLUE          = [ xLength/2-0.9, yLength/2+0.5, 0];  % [m; m; rad]
+% drop_states_RED           = [ xLength/2+0.5, yLength/2, pi];       % [m; m; rad]
+% drop_states_BLACK         = [ xLength/2, yLength/2, 0];            % [m; m; rad]
+% drop_states_BLUE          = [ xLength/2-0.5; yLength/2; 0];        % [m; m; rad]
+% 
+% init_states_RED           = [ xLength/2+0.9; yLength/2; pi];       % [m; m; rad]
+% init_states_BLACK         = [ xLength/2; yLength/2; 0];            % [m; m; rad]
+% init_states_BLUE          = [ xLength/2-0.9; yLength/2; 0];        % [m; m; rad]
+
+home_states_RED           = [ xLength/2+0.9; yLength/2; pi];       % [m; m; rad]
+home_states_BLACK         = [ xLength/2; yLength/2; 0];            % [m; m; rad]
+home_states_BLUE          = [ xLength/2-0.9; yLength/2; 0];        % [m; m; rad]
                                               
 %% Start the graphical user interface:
 
