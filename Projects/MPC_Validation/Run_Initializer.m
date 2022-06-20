@@ -239,7 +239,7 @@ thruster_dist2CG_BLUE         = [73.54;-64.46;81.39;-60.11;64.46;-65.94;54.61;-7
 %    MPC (ISNM): 6
 %    Fast MPC (ISNM): 7
 ALGORITHM = 5;
-isCONTROL = 1;
+isCONTROL = 0;
 
 if ALGORITHM == 5
     % MPC
@@ -269,7 +269,7 @@ N = 15;  % number of horizons
 theInitializer;
 
 % Position and velocity of obstacles
-testcase = 'D'; % 'A' or 'B' or 'C' ...
+testcase = 'A'; % 'A' or 'B' or 'C' ...
 
 if testcase == 'A'
     cc = [3.0; 2.0]; % chaser center (initial)
