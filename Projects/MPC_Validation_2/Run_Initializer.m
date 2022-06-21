@@ -267,11 +267,11 @@ N = 15;  % number of horizons
 theInitializer;
 
 % Position and velocity of obstacles
-testcase = 'D'; % 'A' or 'B' or 'C' ...
+testcase = 'B'; % 'A' or 'B' or 'C' ...
 
 if testcase == 'A'
     cc = [3.0; 2.0]; % chaser center (initial)
-    thetac0 = pi; % rad, initial chaser angle
+    thetac0 = 0; % rad, initial chaser angle
 
     ct = [0.5; 0.5]; % target center
     vtar = [0.01;0.01]; % target COM velocity, m/s
@@ -279,7 +279,7 @@ if testcase == 'A'
     thetat_dot = 1.0 * d2r; % rad/s, rotation rate of target spacecraft
 elseif testcase == 'B'
     cc = [3.3; 1.8]; % chaser center (initial)
-    thetac0 = pi; % rad, initial chaser angle
+    thetac0 = 0; % rad, initial chaser angle
 
     ct = [2.0; 2.2]; % target center
     vtar = [-0.01;-0.005]; % target COM velocity, m/s
@@ -288,7 +288,7 @@ elseif testcase == 'B'
 
 elseif testcase == 'C'
     cc = [1.75; 0.8]; % chaser center (initial)
-    thetac0 = 3.5; % rad, initial chaser angle
+    thetac0 = 3.5-2*pi; % rad, initial chaser angle
 
     ct = [2.9; 1.25]; % target center
     vtar = [-0.01;0.005]; % target COM velocity, m/s
