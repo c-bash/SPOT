@@ -267,7 +267,7 @@ N = 15;  % number of horizons
 theInitializer;
 
 % Position and velocity of obstacles
-testcase = 'B'; % 'A' or 'B' or 'C' ...
+testcase = 'C'; % 'A' or 'B' or 'C' ...
 
 if testcase == 'A'
     cc = [3.0; 2.0]; % chaser center (initial)

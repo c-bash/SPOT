@@ -11,30 +11,120 @@ function [zout,nuout] = theFastMPCSolver3(z,nu,zt,H,C,b,P,h,epsilon1,ALPHA,BETA,
     N = length(z)/9;
     numcon = length(h)/N;
     
+    % Ensure a feasible start
     if any((h - P*z) <= 0)
-        disp('Started with infeasible solution.');
+%         disp('Started with infeasible solution.');
         infeas0 = find((h - P*z) <= 0);
-        disp(infeas0)
+%         disp(infeas0)
         
-        % Find a new feasible z-val for the violated constraint(s)
-        for ind = infeas0.'
-            z_infeas_ind = find(P(ind,:)); % optimization variable(s) to vary
-%             disp('z(infeas)=')
-%             disp(z_infeas_ind)
-            
-            newind = z_infeas_ind - 9;
-            while (1)
 
-                z(z_infeas_ind) = z(newind); % re-tracing previous sol'n            
+            % Find a new feasible z-val for the violated constraint(s)
+            for loopind = 1:length(infeas0)
+                ind = infeas0(loopind);
                 
-                if (h(ind)- P(ind,:)*z) <= 0
-                    newind = newind - 9;
+                if numcon == 8 % no ec constraints yet
+                    ind_startrange = 7 + 8*idivide(ind,int16(8+1));
+                    ind_endrange = ind_startrange + 1;
                 else
-                    break
+                    ind_startrange = 7 + 10*idivide(ind,int16(10+1));
+                    ind_endrange = ind_startrange + 3;
                 end
+%                 disp(ind_startrange)
+%                 disp(ind_endrange)
+                    
+                z_infeas_ind = find(P(ind,:)); % optimization variable(s) to vary
+    %             disp('z(infeas)=')
+    %             disp(z_infeas_ind)
+
+                newind = z_infeas_ind - 9;
                 
+                search_range = 1;
+                search_stepnum = 1001;
+                
+                while (1)
+                    if newind < 0
+%                         disp("Sampling...")
+
+                        % make a grid of search points
+                        try_x = linspace(z(z_infeas_ind(1))-search_range,z(z_infeas_ind(1))+search_range,search_stepnum);
+                        try_y = linspace(z(z_infeas_ind(2))-search_range,z(z_infeas_ind(2))+search_range,search_stepnum);
+                        [xx,yy] = meshgrid(try_x,try_y);
+
+                        % calcuate the constraint at each grid point
+%                         temp = zeros(search_stepnum,search_stepnum);
+                        temp2 = zeros(search_stepnum*search_stepnum,3);
+                        for i1=1:search_stepnum
+                            for i2 = 1:search_stepnum
+                                temp = h(ind_startrange:ind_endrange) - P(ind_startrange:ind_endrange,z_infeas_ind)*[xx(i1,i2);yy(i1,i2)];
+
+                                % take note of grid points that satisfy the constraint
+                                if ~any(temp <= 0)
+                                    temp2((i1-1)*search_stepnum+i2,1) = min(temp);
+                                    temp2((i1-1)*search_stepnum+i2,2) = i1;
+                                    temp2((i1-1)*search_stepnum+i2,3) = i2;
+                                end
+                            end
+                        end
+
+                        % get rid of data that does not satisfy the constraints
+                        temp2( ~any(temp2,2), : ) = [];  %rows
+                        
+                        if isempty(temp2)
+%                             if search_stepnum > search_stepnum * 2 * 2
+%                                 break
+%                             end
+%                             search_range = 3;
+%                             search_stepnum = search_stepnum * 2;
+%                             continue
+                            break
+                        end
+
+                        % choose one of the grid points that satisfy the constraint
+                        % currently finds the first minimum value... could be further improved
+                        ind_of_min = find(temp2(:,1) == min(temp2(:,1)));
+                        ind_chosen = ind_of_min(1);
+
+                        % update the x0 with the new grid point
+                        [i1i2_chosen] = temp2(ind_chosen,[2,3]);
+                        i1_chosen = i1i2_chosen(1);
+                        i2_chosen = i1i2_chosen(2);
+                        z(z_infeas_ind) = [xx(i1_chosen,i2_chosen);yy(i1_chosen,i2_chosen)];                     
+                        
+                    else
+                        z(z_infeas_ind) = z(newind); % re-tracing previous sol'n
+                    end
+
+                    if (h(ind)- P(ind,:)*z) <= 0
+                        if newind < 0
+                            continue
+                        else
+                            newind = newind - 9;
+                        end
+                    else
+%                         disp("Resolved.")
+                        break
+                        
+                    end
+                end
             end
-        end
+%         % Find a new feasible z-val for the violated constraint(s)
+%         for ind = infeas0.'
+%             z_infeas_ind = find(P(ind,:)); % optimization variable(s) to vary
+% %             disp('z(infeas)=')
+% %             disp(z_infeas_ind)
+%             
+%             newind = z_infeas_ind - 9;
+%             while (1)
+%                 z(z_infeas_ind) = z(newind); % re-tracing previous sol'n
+% 
+%                 if (h(ind)- P(ind,:)*z) <= 0
+%                     newind = newind - 9;
+%                     
+%                 else
+%                     break
+%                 end
+%             end
+%         end
         
     end
     
@@ -87,8 +177,8 @@ function [zout,nuout] = theFastMPCSolver3(z,nu,zt,H,C,b,P,h,epsilon1,ALPHA,BETA,
                 if feas_count > 100
                     feas_flag = 1;
                     infeas = find((h - P*feasz) <= 0);
-                    disp('No feasibility.')
-                    disp(infeas)
+%                     disp('No feasibility.')
+%                     disp(infeas)
                     break
                 end
             end
