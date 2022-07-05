@@ -267,7 +267,7 @@ N = 15;  % number of horizons
 theInitializer;
 
 % Position and velocity of obstacles
-testcase = 'C'; % 'A' or 'B' or 'C' ...
+testcase = 'D'; % 'A' or 'B' or 'C' ...
 
 if testcase == 'A'
     cc = [3.0; 2.0]; % chaser center (initial)
@@ -296,13 +296,13 @@ elseif testcase == 'C'
     thetat_dot = -2.0 * d2r; % rad/s, rotation rate of target spacecraft
     
 elseif testcase == 'D'
-    cc = [3; 2]; % chaser center (initial)
-    thetac0 = 0; % rad, initial chaser angle
+    cc = [1.5; 2.0]; % chaser center (initial)
+    thetac0 = pi; % rad, initial chaser angle
 
-    ct = [0.4; 0.4]; % target center
-    vtar = [0.0;0.0]; % target COM velocity, m/s
-    thetat0 = -pi/4; % rad, initial target angle
-    thetat_dot = 0 * d2r; % rad/s, rotation rate of target spacecraft
+    ct = [2.2; 0.2]; % target center
+    vtar = [-0.005;0.005]; % target COM velocity, m/s
+    thetat0 = -pi/2; % rad, initial target angle
+    thetat_dot = 2.5 * d2r; % rad/s, rotation rate of target spacecraft
 end
 
 if ~isCONTROL
@@ -316,8 +316,8 @@ if ~isCONTROL
         pobj1 = [2.6; 0.6];          % position of obstacle 1, Test Case C
         vobj1 = [-0.006;0.0030];        % velocity of the moving obstacle 1
     elseif testcase == 'D'
-        pobj1 = [1.75; 1.25];          % position of obstacle 1, Test Case C
-        vobj1 = [0.0;0.0];        % velocity of the moving obstacle 1
+        pobj1 = [2.5; 1.2];          % position of obstacle 1, Test Case D
+        vobj1 = [-0.01;0.00];        % velocity of the moving obstacle 1
     end
 else
     pobj1 = [10.; 10.];          
